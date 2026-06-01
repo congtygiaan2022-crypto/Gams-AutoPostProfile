@@ -1,0 +1,70 @@
+# Core database and dynamic state files
+database.json
+system.db
+*.db
+*.db-journal
+*.sqlite3
+
+# Python caches and environment files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+env/
+venv/
+ENV/
+
+# Log files and job state records
+job_*.json
+*.log
+temp_worker.txt
+
+# Media files, screenshots and HTML page dumps
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
+*.html
+
+# Developer workspace configurations
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+
+# Exclude scratch scripts, diagnostics and patch utilities
+byte_repair.py
+check_db_paths.py
+check_folders.py
+debug_*.py
+definitive_font_fix.py
+diagnostic_ui.py
+dump_page.py
+final_utf8_standardizer.py
+fix_*.py
+forensic_fixer.py
+heuristic_*.py
+inspect_mobile.py
+migrate_all.py
+sanitizer_pro.py
+standardize_paths.py
+test_*.py
+ultimate_repair.py
+universal_font_fix.py
+update_*.py
+validate_json.py
+verify_*.py
+
+# Git uploader specific files
+git_config.json
+Git_Uploader.py

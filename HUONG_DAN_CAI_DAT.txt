@@ -1,0 +1,23 @@
+====================================================
+  HƯỚNG DẪN CÀI ĐẶT & CHẠY TOOL ĐĂNG BÀI NICK CÁ NHÂN
+====================================================
+
+Để khởi chạy phần mềm lần đầu tiên trên máy tính của bạn, vui lòng làm theo 3 bước đơn giản dưới đây:
+
+BƯỚC 1: CÀI ĐẶT PHẦN MỀM HỆ THỐNG (BẮT BUỘC)
+Nếu máy bạn chưa có Python và Git, hãy tải và cài đặt chúng:
+1. Python (từ phiên bản 3.10 trở lên):
+   - Tải về tại: https://www.python.org/downloads/
+   - Cài đặt bình thường. LƯU Ý CỰC KỲ QUAN TRỌNG: Khi vừa mở file cài đặt lên, hãy tích chọn vào ô "[x] Add Python to PATH" ở góc dưới cùng trước khi bấm "Install Now".
+2. Phần mềm Git:
+   - Tải về tại: https://git-scm.com/downloads
+   - Cài đặt bình thường với các tùy chọn mặc định.
+
+BƯỚC 2: CÀI ĐẶT THƯ VIỆN BỔ TRỢ
+1. Nhấp đúp chuột chạy tệp tin "Cai_Dat_Thu_Vien.bat".
+2. Chờ màn hình chạy xong và thông báo "CÀI ĐẶT THƯ VIỆN THÀNH CÔNG!" thì nhấn phím bất kỳ để đóng lại.
+
+BƯỚC 3: KHỞI CHẠY PHẦN MỀM
+1. Nhấp đúp chuột chạy tệp tin "Chay_Tool.bat".
+2. Hệ thống sẽ tự động kết nối đến GitHub để tải toàn bộ code sạch mới nhất về máy của bạn, tự động tạo các file dữ liệu cấu hình trống (SQLite database system.db, config database.json) và mở giao diện ứng dụng lên.
+3. Từ lần chạy sau, mỗi khi bạn mở "Chay_Tool.bat", tool sẽ tự động kiểm tra và cập nhật code mới nhất.
