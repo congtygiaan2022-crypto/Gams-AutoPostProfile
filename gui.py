@@ -17,12 +17,23 @@ import webbrowser
 import psutil
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, db_file="database.json", sqlite_file="system.db", profile_name="Profile 1"):
         super().__init__()
-        self.title("Công Cụ Đăng Reels Tự Động - Phiên bản v2.0 (GPM/GemLogin)")
-        self.geometry("1100x700")
-        self.minsize(900, 600)
-        self.db = Database()
+        
+        # Configure SQLite database path dynamically
+        from db_helper import db as sqlite_db
+        sqlite_db.db_path = sqlite_file
+        
+        # Verify schema
+        from init_db import init_db
+        try:
+            init_db(sqlite_file)
+        except:
+            pass
+            
+        self.db = Database(db_file)
+        self.profile_name = profile_name
+        self.title(f"Công Cụ Đăng Reels Tự Động - Phiên bản v2.0 (GPM/GemLogin) - [{profile_name}]")
         self.automator = None
         self.stop_flag = False
         self.active_procs = [] # Track worker subprocesses
@@ -61,6 +72,10 @@ class App(tk.Tk):
                   command=self.browser_settings_ui, **btn_style).pack(side="left", padx=2)
         tk.Button(settings_frame, text="📊 Log/Thống Kê", bg="#3a9a5c", fg="white",
                   command=self.show_video_log_ui, **btn_style).pack(side="left", padx=2)
+        tk.Button(settings_frame, text="📥 Sao Lưu", bg="#27ae60", fg="white",
+                  command=self.backup_current_profile_ui, **btn_style).pack(side="left", padx=2)
+        tk.Button(settings_frame, text="📤 Phục Hồi", bg="#2980b9", fg="white",
+                  command=self.restore_current_profile_ui, **btn_style).pack(side="left", padx=2)
 
         # Selection Control (inside settings frame)
         sel_frame = tk.Frame(settings_frame, bg="#f8f9fa")
@@ -1344,6 +1359,7 @@ class App(tk.Tk):
                                 time.sleep(1)
                             except: pass
 
+                            from db_helper import db as sqlite_db
                             job = {
                                 'run_mode': run_mode,
                                 'skip_commented': skip_commented,
@@ -1352,6 +1368,8 @@ class App(tk.Tk):
                                 'profile_id': str(p_id),
                                 'profile_label': str(p_id),
                                 'pages': pages_for_profile,
+                                'db_file': self.db.file_path,
+                                'sqlite_file': sqlite_db.db_path,
                             }
                             
                             tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8', dir=_BASE_DIR, prefix=f'job_{p_id}_')
@@ -1490,6 +1508,127 @@ class App(tk.Tk):
         self.active_workers.clear()
         self.active_procs.clear()
 
+    def backup_current_profile_ui(self):
+        import zipfile
+        from datetime import datetime
+        
+        # Ensure backups directory exists
+        backup_dir = os.path.join(_BASE_DIR, "backups")
+        if not os.path.exists(backup_dir):
+            try:
+                os.makedirs(backup_dir)
+            except Exception as e:
+                self.log(f"Không thể tạo thư mục backups: {e}")
+        
+        # Determine default backup filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_profile_name = "".join(c for c in self.profile_name if c.isalnum() or c in (' ', '_', '-')).strip().replace(' ', '_')
+        default_filename = f"backup_{safe_profile_name}_{timestamp}.zip"
+        
+        file_path = filedialog.asksaveasfilename(
+            title="Chọn nơi lưu bản sao lưu",
+            initialdir=backup_dir if os.path.exists(backup_dir) else None,
+            initialfile=default_filename,
+            filetypes=[("ZIP files", "*.zip")],
+            defaultextension=".zip"
+        )
+        
+        if not file_path:
+            return
+            
+        try:
+            # Source files
+            db_json_path = self.db.file_path
+            from db_helper import db as sqlite_db
+            sqlite_path = sqlite_db.db_path
+            
+            # Create zip
+            with zipfile.ZipFile(file_path, 'w', zipfile.ZIP_DEFLATED) as zip_ref:
+                # Add database JSON
+                if os.path.exists(db_json_path):
+                    zip_ref.write(db_json_path, "config.json")
+                    
+                # Add SQLite DB
+                if os.path.exists(sqlite_path):
+                    zip_ref.write(sqlite_path, "history.db")
+                    
+                # Add metadata
+                metadata = {
+                    "profile_name": self.profile_name,
+                    "backup_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "version": "1.1.0"
+                }
+                zip_ref.writestr("metadata.json", json.dumps(metadata, indent=4, ensure_ascii=False))
+                
+            messagebox.showinfo("Thành công", f"Đã sao lưu Profile '{self.profile_name}' thành công!")
+            self.log(f"Đã sao lưu Profile '{self.profile_name}' vào tệp: {file_path}")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể tạo bản sao lưu: {e}")
+            self.log(f"Lỗi khi sao lưu: {e}")
+
+    def restore_current_profile_ui(self):
+        import zipfile
+        import json
+        
+        backup_dir = os.path.join(_BASE_DIR, "backups")
+        
+        file_path = filedialog.askopenfilename(
+            title="Chọn tệp sao lưu để khôi phục (.zip)",
+            initialdir=backup_dir if os.path.exists(backup_dir) else None,
+            filetypes=[("ZIP files", "*.zip")]
+        )
+        
+        if not file_path:
+            return
+            
+        try:
+            # Verify zip content
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                file_list = zip_ref.namelist()
+                if "config.json" not in file_list:
+                    messagebox.showerror("Lỗi", "Tệp sao lưu không hợp lệ (Không tìm thấy config.json).")
+                    return
+                
+                # Try to read metadata to show a nice prompt
+                meta_info = ""
+                if "metadata.json" in file_list:
+                    try:
+                        metadata = json.loads(zip_ref.read("metadata.json").decode('utf-8'))
+                        meta_info = f"\n- Profile gốc: {metadata.get('profile_name')}\n- Thời gian sao lưu: {metadata.get('backup_time')}"
+                    except: pass
+                
+                confirm = messagebox.askyesno(
+                    "Xác nhận khôi phục",
+                    f"Bạn có chắc chắn muốn khôi phục dữ liệu từ tệp sao lưu này?{meta_info}\n\n⚠️ HÀNH ĐỘNG NÀY SẼ GHI ĐÈ TOÀN BỘ cấu hình và lịch sử hiện tại của Profile '{self.profile_name}'!"
+                )
+                
+                if not confirm:
+                    return
+                
+                # Extract and overwrite
+                db_json_path = self.db.file_path
+                from db_helper import db as sqlite_db
+                sqlite_path = sqlite_db.db_path
+                
+                # Overwrite JSON
+                with open(db_json_path, 'wb') as f:
+                    f.write(zip_ref.read("config.json"))
+                    
+                # Overwrite SQLite
+                if "history.db" in file_list:
+                    with open(sqlite_path, 'wb') as f:
+                        f.write(zip_ref.read("history.db"))
+                        
+            # Reload Database and refresh UI
+            self.db = Database(db_json_path)
+            self.refresh_ui()
+            
+            messagebox.showinfo("Thành công", f"Đã khôi phục dữ liệu Profile '{self.profile_name}' thành công!")
+            self.log(f"Đã khôi phục dữ liệu Profile '{self.profile_name}' từ tệp: {file_path}")
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Không thể khôi phục dữ liệu: {e}")
+            self.log(f"Lỗi khi khôi phục: {e}")
+
     def on_app_exit(self):
         """ Kill all child processes before exiting """
         self.stop_flag = True
@@ -1497,6 +1636,122 @@ class App(tk.Tk):
         self.destroy()
         sys.exit(0)
 
+from tkinter import simpledialog
+import json
+
+class ProfileSelector(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("Chọn Profile Hoạt Động")
+        self.geometry("520x450")
+        self.resizable(False, False)
+        self.configure(bg="#1e1e2e")
+        
+        # Load or create config
+        self.config_path = "profiles_config.json"
+        self.load_config()
+        
+        # Design Title
+        lbl_title = tk.Label(self, text="HỆ THỐNG QUẢN LÝ PROFILE", font=("Arial", 16, "bold"), bg="#1e1e2e", fg="#cba6f7")
+        lbl_title.pack(pady=20)
+        
+        lbl_desc = tk.Label(self, text="Vui lòng chọn Profile để truy cập Dashboard riêng biệt:", font=("Arial", 10), bg="#1e1e2e", fg="#a6adc8")
+        lbl_desc.pack(pady=(0, 20))
+        
+        # Grid frame
+        grid_frame = tk.Frame(self, bg="#1e1e2e")
+        grid_frame.pack(fill="both", expand=True, padx=40)
+        
+        self.buttons = []
+        for i, prof in enumerate(self.profiles):
+            row = i // 2
+            col = i % 2
+            
+            # Subframe for button + edit button
+            item_frame = tk.Frame(grid_frame, bg="#1e1e2e", pady=8, padx=8)
+            item_frame.grid(row=row, column=col, sticky="nsew")
+            
+            # Select button
+            btn_select = tk.Button(
+                item_frame, text=prof['name'], font=("Arial", 11, "bold"),
+                bg="#313244", fg="#cdd6f4", activebackground="#45475a", activeforeground="#cba6f7",
+                bd=0, height=2, width=15, cursor="hand2",
+                command=lambda p=prof: self.select_profile(p)
+            )
+            btn_select.pack(side="left", fill="x", expand=True)
+            self.buttons.append((btn_select, prof))
+            
+            # Edit name button
+            btn_edit = tk.Button(
+                item_frame, text="✏️", font=("Arial", 10),
+                bg="#1e1e2e", fg="#fab387", activebackground="#1e1e2e", activeforeground="#f38ba8",
+                bd=0, cursor="hand2", padx=5,
+                command=lambda idx=i: self.edit_profile_name(idx)
+            )
+            btn_edit.pack(side="right", padx=(5, 0))
+            
+        # Set grid weight
+        for r in range(3):
+            grid_frame.rowconfigure(r, weight=1)
+        for c in range(2):
+            grid_frame.columnconfigure(c, weight=1)
+            
+        self.selected_profile = None
+
+    def load_config(self):
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    self.config = json.load(f)
+            except:
+                self.config = self.get_default_config()
+        else:
+            self.config = self.get_default_config()
+            self.save_config()
+            
+        self.profiles = self.config.get("profiles", [])
+
+    def get_default_config(self):
+        return {
+            "profiles": [
+                {"id": 1, "name": "Profile 1", "db_file": "database.json", "sqlite_file": "system.db"},
+                {"id": 2, "name": "Profile 2", "db_file": "database_2.json", "sqlite_file": "system_2.db"},
+                {"id": 3, "name": "Profile 3", "db_file": "database_3.json", "sqlite_file": "system_3.db"},
+                {"id": 4, "name": "Profile 4", "db_file": "database_4.json", "sqlite_file": "system_4.db"},
+                {"id": 5, "name": "Profile 5", "db_file": "database_5.json", "sqlite_file": "system_5.db"},
+                {"id": 6, "name": "Profile 6", "db_file": "database_6.json", "sqlite_file": "system_6.db"}
+            ]
+        }
+
+    def save_config(self):
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            print(f"Error saving profiles config: {e}")
+
+    def edit_profile_name(self, idx):
+        current_name = self.profiles[idx]['name']
+        new_name = simpledialog.askstring("Đổi tên Profile", f"Nhập tên mới cho {current_name}:", parent=self)
+        if new_name and new_name.strip():
+            self.profiles[idx]['name'] = new_name.strip()
+            self.config['profiles'] = self.profiles
+            self.save_config()
+            self.buttons[idx][0].configure(text=new_name.strip())
+
+    def select_profile(self, profile):
+        self.selected_profile = profile
+        self.destroy()
+
 if __name__ == "__main__":
-    app = App()
-    app.mainloop()
+    selector = ProfileSelector()
+    selector.mainloop()
+    
+    if selector.selected_profile:
+        prof = selector.selected_profile
+        app = App(
+            db_file=prof['db_file'],
+            sqlite_file=prof['sqlite_file'],
+            profile_name=prof['name']
+        )
+        app.mainloop()

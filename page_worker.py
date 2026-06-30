@@ -118,7 +118,21 @@ def run_worker(job_path):
     pages = job['pages']
     profile_label = job.get('profile_label', f'Profile {p_id}')
 
-    db = Database()
+    db_file = job.get('db_file', 'database.json')
+    sqlite_file = job.get('sqlite_file', 'system.db')
+
+    # Configure SQLite database path dynamically
+    from db_helper import db as sqlite_db
+    sqlite_db.db_path = sqlite_file
+
+    # Verify schema
+    from init_db import init_db
+    try:
+        init_db(sqlite_file)
+    except:
+        pass
+
+    db = Database(db_file)
 
     log(f"[Worker:{profile_label}] Bắt đầu xử lý {len(pages)} Nick Cá Nhân...")
 

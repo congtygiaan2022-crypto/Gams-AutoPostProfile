@@ -68,3 +68,8 @@ verify_*.py
 # Git uploader specific files
 git_config.json
 Git_Uploader.py
+
+# Allow backups folder and zip files inside it
+!backups/
+!backups/*.zip
+!backups/.gitkeep

@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 import logging
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -6,10 +6,12 @@ logger = logging.getLogger(__name__)
 
 DB_PATH = "system.db"
 
-def init_db():
-    logger.info(f"Initializing database at {DB_PATH}...")
+def init_db(db_path=None):
+    if db_path is None:
+        db_path = DB_PATH
+    logger.info(f"Initializing database at {db_path}...")
     
-    with sqlite3.connect(DB_PATH) as conn:
+    with sqlite3.connect(db_path) as conn:
         cursor = conn.cursor()
         
         # Table: fb_posts

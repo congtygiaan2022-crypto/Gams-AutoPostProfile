@@ -11,7 +11,17 @@ os.chdir(_BASE_DIR)
 if _BASE_DIR not in sys.path:
     sys.path.insert(0, _BASE_DIR)
 
-from gui import App
+from gui import App, ProfileSelector
 
-app = App()
-app.mainloop()
+if __name__ == "__main__":
+    selector = ProfileSelector()
+    selector.mainloop()
+    
+    if selector.selected_profile:
+        prof = selector.selected_profile
+        app = App(
+            db_file=prof['db_file'],
+            sqlite_file=prof['sqlite_file'],
+            profile_name=prof['name']
+        )
+        app.mainloop()
