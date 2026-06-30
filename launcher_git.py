@@ -9,6 +9,20 @@ import sys
 import os
 import subprocess
 
+# Tu dong reconfigure encoding sang UTF-8 de tranh UnicodeEncodeError tren Windows
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+if sys.stderr.encoding != 'utf-8':
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except Exception:
+        import io
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 # Đảm bảo thư mục làm việc luôn là thư mục chứa script launcher_git.py
 _BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 if _BASE_DIR:
